@@ -99,51 +99,61 @@ const bobR = 14;
 const trailMax = 600;
 
 const DEG = Math.PI / 180;
-let a1 = 120 * DEG, a2 = 120 * DEG;
-let w1 = 0, w2 = 0;
+let state = { a1: 120 * DEG, w1: 0, a2: 120 * DEG, w2: 0 };
 let time = 0;
 let paused = false;
 let trail = [];
 
 let dragging = null;
 
-function derivatives(a1, w1, a2, w2) {
+function accel(a1, w1, a2, w2) {
   const da = a1 - a2;
   const sinDa = Math.sin(da), cosDa = Math.cos(da);
-  const s1 = Math.sin(a1);
+  const sin1 = Math.sin(a1), cos1 = Math.cos(a1);
   const M = m1 + m2;
   const denom = 2 * M - m2 * cosDa * cosDa;
 
-  const dw1 = (-g * 2 * M * s1
+  const dw1 = (-g * 2 * M * sin1
     - m2 * g * Math.sin(a1 - 2 * a2)
     - 2 * sinDa * m2 * (w2 * w2 * L2 + w1 * w1 * L1 * cosDa))
     / (L1 * denom);
 
   const dw2 = (2 * sinDa * (w1 * w1 * L1 * M
-    + g * M * Math.cos(a1)
+    + g * M * cos1
     + w2 * w2 * L2 * m2 * cosDa))
     / (L2 * denom);
 
   return [w1, dw1, w2, dw2];
 }
 
-function rk4(dt) {
-  const s = [a1, w1, a2, w2];
-  const k1 = derivatives(s[0], s[1], s[2], s[3]);
-  const s2 = s.map((v, i) => v + k1[i] * dt / 2);
-  const k2 = derivatives(s2[0], s2[1], s2[2], s2[3]);
-  const s3 = s.map((v, i) => v + k2[i] * dt / 2);
-  const k3 = derivatives(s3[0], s3[1], s3[2], s3[3]);
-  const s4 = s.map((v, i) => v + k3[i] * dt);
-  const k4 = derivatives(s4[0], s4[1], s4[2], s4[3]);
+function rk4Step(s, dt) {
+  const k1 = accel(s.a1, s.w1, s.a2, s.w2);
+  const s2 = {
+    a1: s.a1 + k1[0] * dt / 2, w1: s.w1 + k1[1] * dt / 2,
+    a2: s.a2 + k1[2] * dt / 2, w2: s.w2 + k1[3] * dt / 2
+  };
+  const k2 = accel(s2.a1, s2.w1, s2.a2, s2.w2);
+  const s3 = {
+    a1: s.a1 + k2[0] * dt / 2, w1: s.w1 + k2[1] * dt / 2,
+    a2: s.a2 + k2[2] * dt / 2, w2: s.w2 + k2[3] * dt / 2
+  };
+  const k3 = accel(s3.a1, s3.w1, s3.a2, s3.w2);
+  const s4 = {
+    a1: s.a1 + k3[0] * dt, w1: s.w1 + k3[1] * dt,
+    a2: s.a2 + k3[2] * dt, w2: s.w2 + k3[3] * dt
+  };
+  const k4 = accel(s4.a1, s4.w1, s4.a2, s4.w2);
 
-  a1 += (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]) * dt / 6;
-  w1 += (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) * dt / 6;
-  a2 += (k1[2] + 2*k2[2] + 2*k3[2] + k4[2]) * dt / 6;
-  w2 += (k1[3] + 2*k2[3] + 2*k3[3] + k4[3]) * dt / 6;
+  return {
+    a1: s.a1 + (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]) * dt / 6,
+    w1: s.w1 + (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) * dt / 6,
+    a2: s.a2 + (k1[2] + 2*k2[2] + 2*k3[2] + k4[2]) * dt / 6,
+    w2: s.w2 + (k1[3] + 2*k2[3] + 2*k3[3] + k4[3]) * dt / 6
+  };
 }
 
 function totalEnergy() {
+  const { a1, w1, a2, w2 } = state;
   const c1 = Math.cos(a1), c2 = Math.cos(a2);
   const cd = Math.cos(a1 - a2);
   const ke = 0.5 * m1 * L1*L1 * w1*w1
@@ -153,6 +163,7 @@ function totalEnergy() {
 }
 
 function bobPos() {
+  const { a1, a2 } = state;
   const x1 = pivotX + L1 * Math.sin(a1);
   const y1 = pivotY + L1 * Math.cos(a1);
   const x2 = x1 + L2 * Math.sin(a2);
@@ -214,9 +225,9 @@ function drawBob(x, y, c1, c2) {
 
 function loop() {
   if (!paused && !dragging) {
-    const dt = 0.001;
-    for (let i = 0; i < 16; i++) {
-      rk4(dt);
+    const dt = 0.002;
+    for (let i = 0; i < 8; i++) {
+      state = rk4Step(state, dt);
       time += dt;
     }
     const { x2, y2 } = bobPos();
@@ -225,8 +236,8 @@ function loop() {
   }
 
   draw();
-  document.getElementById('a1Display').textContent = (a1 / DEG).toFixed(1) + '°';
-  document.getElementById('a2Display').textContent = (a2 / DEG).toFixed(1) + '°';
+  document.getElementById('a1Display').textContent = (state.a1 / DEG).toFixed(1) + '°';
+  document.getElementById('a2Display').textContent = (state.a2 / DEG).toFixed(1) + '°';
   document.getElementById('energyDisplay').textContent = totalEnergy().toFixed(1) + ' J';
   document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
   requestAnimationFrame(loop);
@@ -254,12 +265,12 @@ canvas.addEventListener('mousemove', e => {
   if (!dragging) return;
   const { x, y } = getMousePos(e);
   if (dragging === 1) {
-    a1 = Math.atan2(x - pivotX, y - pivotY);
+    state.a1 = Math.atan2(x - pivotX, y - pivotY);
   } else {
     const { x1, y1 } = bobPos();
-    a2 = Math.atan2(x - x1, y - y1);
+    state.a2 = Math.atan2(x - x1, y - y1);
   }
-  w1 = 0; w2 = 0; trail = [];
+  state.w1 = 0; state.w2 = 0; trail = [];
 });
 
 canvas.addEventListener('mouseup', endDrag);
@@ -270,7 +281,8 @@ function endDrag() {
 }
 
 document.getElementById('btnReset').addEventListener('click', () => {
-  a1 = 120 * DEG; a2 = 120 * DEG; w1 = 0; w2 = 0; time = 0; trail = []; paused = false;
+  state = { a1: 120 * DEG, w1: 0, a2: 120 * DEG, w2: 0 };
+  time = 0; trail = []; paused = false;
   document.getElementById('btnPause').textContent = '暂停';
 });
 
