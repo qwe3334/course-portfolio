@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双摆仿真视频录制</title>
+<style>
+  body {
+    background: #1a1a24;
+    color: #c8c8d4;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  canvas {
+    border: 2px solid #444;
+    margin: 20px 0;
+  }
+  button {
+    background: rgba(100, 140, 255, 0.2);
+    border: 1px solid rgba(100, 140, 255, 0.4);
+    color: #c0c0e0;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin: 10px;
+  }
+  button:hover { background: rgba(100, 140, 255, 0.3); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status {
+    margin: 10px;
+    font-size: 0.9rem;
+    color: #a0a0ff;
+  }
+</style>
+</head>
+<body>
+
+<h2>双摆仿真视频录制器</h2>
+<canvas id="canvas" width="700" height="560"></canvas>
+<div>
+  <button id="btnRecord">开始录制 (10秒)</button>
+  <button id="btnDownload" disabled>下载视频</button>
+</div>
+<div id="status">准备就绪</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// Physics constants
+const g = 9.8, m1 = 10, m2 = 10, L1 = 140, L2 = 140;
+const DEG = Math.PI / 180;
+const pivotX = 350, pivotY = 160;
+const bobR = 14;
+const trailMax = 600;
+
+let state = { a1: 120 * DEG, w1: 0, a2: 120 * DEG, w2: 0 };
+let time = 0;
+let trail = [];
+
+function accel(a1, w1, a2, w2) {
+  const da = a1 - a2;
+  const sinDa = Math.sin(da), cosDa = Math.cos(da);
+  const sin1 = Math.sin(a1), cos1 = Math.cos(a1);
+  const M = m1 + m2;
+  const denom = 2 * M - 2 * m2 * cosDa * cosDa;
+  
+  const dw1 = (-g * (2*m1 + m2) * sin1 - m2 * g * Math.sin(a1 - 2*a2) 
+    - 2 * sinDa * m2 * (w2*w2*L2 + w1*w1*L1*cosDa)) / (L1 * denom);
+  
+  const dw2 = (2 * sinDa * (w1*w1*L1*M + g * M * cos1 
+    + w2*w2*L2*m2*cosDa)) / (L2 * denom);
+  
+  return [w1, dw1, w2, dw2];
+}
+
+function rk4Step(s, dt) {
+  const k1 = accel(s.a1, s.w1, s.a2, s.w2);
+  const s2 = { a1: s.a1+k1[0]*dt/2, w1: s.w1+k1[1]*dt/2, a2: s.a2+k1[2]*dt/2, w2: s.w2+k1[3]*dt/2 };
+  const k2 = accel(s2.a1, s2.w1, s2.a2, s2.w2);
+  const s3 = { a1: s.a1+k2[0]*dt/2, w1: s.w1+k2[1]*dt/2, a2: s.a2+k2[2]*dt/2, w2: s.w2+k2[3]*dt/2 };
+  const k3 = accel(s3.a1, s3.w1, s3.a2, s3.w2);
+  const s4 = { a1: s.a1+k3[0]*dt, w1: s.w1+k3[1]*dt, a2: s.a2+k3[2]*dt, w2: s.w2+k3[3]*dt };
+  const k4 = accel(s4.a1, s4.w1, s4.a2, s4.w2);
+  
+  return {
+    a1: s.a1 + (k1[0]+2*k2[0]+2*k3[0]+k4[0])*dt/6,
+    w1: s.w1 + (k1[1]+2*k2[1]+2*k3[1]+k4[1])*dt/6,
+    a2: s.a2 + (k1[2]+2*k2[2]+2*k3[2]+k4[2])*dt/6,
+    w2: s.w2 + (k1[3]+2*k2[3]+2*k3[3]+k4[3])*dt/6
+  };
+}
+
+function bobPos() {
+  const { a1, a2 } = state;
+  const x1 = pivotX + L1 * Math.sin(a1);
+  const y1 = pivotY + L1 * Math.cos(a1);
+  const x2 = x1 + L2 * Math.sin(a2);
+  const y2 = y1 + L2 * Math.cos(a2);
+  return { x1, y1, x2, y2 };
+}
+
+function drawBob(x, y, c1, c2) {
+  const glow = ctx.createRadialGradient(x, y, bobR * 0.3, x, y, bobR * 3);
+  glow.addColorStop(0, 'rgba(120, 160, 255, 0.35)');
+  glow.addColorStop(1, 'rgba(60, 100, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(x, y, bobR * 3, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  const grad = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, bobR);
+  grad.addColorStop(0, '#f0f0ff');
+  grad.addColorStop(0.5, c1);
+  grad.addColorStop(1, c2);
+  ctx.beginPath();
+  ctx.arc(x, y, bobR, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const { x1, y1, x2, y2 } = bobPos();
+
+  // Draw trail
+  for (let i = 1; i < trail.length; i++) {
+    const t = trail[i];
+    const frac = i / trail.length;
+    const hue = (frac * 300 + time * 40) % 360;
+    const alpha = frac * 0.7;
+    const r = 1.5 + frac * 3.5;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 80%, 60%, ${alpha})`;
+    ctx.fill();
+  }
+
+  // Draw rods
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = 'rgba(180, 190, 220, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Draw pivot
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#8888aa';
+  ctx.fill();
+
+  // Draw bobs
+  drawBob(x1, y1, '#6080cc', '#304880');
+  drawBob(x2, y2, '#cc6080', '#803048');
+
+  // Draw info
+  ctx.fillStyle = '#a0a0ff';
+  ctx.font = '14px monospace';
+  ctx.fillText(`θ₁: ${(state.a1/DEG).toFixed(1)}°`, 20, 30);
+  ctx.fillText(`θ₂: ${(state.a2/DEG).toFixed(1)}°`, 20, 50);
+  ctx.fillText(`t: ${time.toFixed(2)}s`, 20, 70);
+}
+
+function loop() {
+  const dt = 0.002;
+  for (let i = 0; i < 8; i++) {
+    state = rk4Step(state, dt);
+    time += dt;
+  }
+  const { x2, y2 } = bobPos();
+  trail.push({ x: x2, y: y2 });
+  if (trail.length > trailMax) trail.shift();
+  
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Video recording
+let mediaRecorder;
+let recordedChunks = [];
+
+document.getElementById('btnRecord').addEventListener('click', async () => {
+  const btnRecord = document.getElementById('btnRecord');
+  const btnDownload = document.getElementById('btnDownload');
+  const status = document.getElementById('status');
+  
+  // Reset simulation
+  state = { a1: 120 * DEG, w1: 0, a2: 120 * DEG, w2: 0 };
+  time = 0;
+  trail = [];
+  
+  btnRecord.disabled = true;
+  status.textContent = '正在录制...';
+  recordedChunks = [];
+  
+  const stream = canvas.captureStream(30); // 30 fps
+  mediaRecorder = new MediaRecorder(stream, {
+    mimeType: 'video/webm;codecs=vp9',
+    videoBitsPerSecond: 5000000
+  });
+  
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) {
+      recordedChunks.push(e.data);
+    }
+  };
+  
+  mediaRecorder.onstop = () => {
+    status.textContent = '录制完成！点击下载按钮保存视频';
+    btnDownload.disabled = false;
+    btnRecord.disabled = false;
+    btnRecord.textContent = '重新录制';
+  };
+  
+  mediaRecorder.start();
+  
+  // Stop after 10 seconds
+  setTimeout(() => {
+    mediaRecorder.stop();
+    stream.getTracks().forEach(track => track.stop());
+  }, 10000);
+});
+
+document.getElementById('btnDownload').addEventListener('click', () => {
+  const blob = new Blob(recordedChunks, { type: 'video/webm' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `double_pendulum_${Date.now()}.webm`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Start animation loop
+loop();
+</script>
+</body>
+</html>
