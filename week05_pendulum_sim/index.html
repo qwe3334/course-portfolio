@@ -111,9 +111,9 @@ function accel(a1, w1, a2, w2) {
   const sinDa = Math.sin(da), cosDa = Math.cos(da);
   const sin1 = Math.sin(a1), cos1 = Math.cos(a1);
   const M = m1 + m2;
-  const denom = 2 * M - m2 * cosDa * cosDa;
+  const denom = 2 * M - 2 * m2 * cosDa * cosDa;
 
-  const dw1 = (-g * 2 * M * sin1
+  const dw1 = (-g * (2 * m1 + m2) * sin1
     - m2 * g * Math.sin(a1 - 2 * a2)
     - 2 * sinDa * m2 * (w2 * w2 * L2 + w1 * w1 * L1 * cosDa))
     / (L1 * denom);
