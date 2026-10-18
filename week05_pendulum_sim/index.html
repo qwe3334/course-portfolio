@@ -214,8 +214,8 @@ function drawBob(x, y, c1, c2) {
 
 function loop() {
   if (!paused && !dragging) {
-    const dt = 0.008;
-    for (let i = 0; i < 3; i++) {
+    const dt = 0.001;
+    for (let i = 0; i < 16; i++) {
       rk4(dt);
       time += dt;
     }
