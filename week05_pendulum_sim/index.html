@@ -52,12 +52,53 @@
     transition: background 0.2s;
   }
   button:hover { background: rgba(100, 140, 255, 0.25); }
+  .sliders {
+    display: flex;
+    gap: 28px;
+    margin-top: 14px;
+    font-size: 0.82rem;
+    color: #8888a0;
+  }
+  .sliders label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .sliders .val { color: #a0a0ff; font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 130px;
+    height: 4px;
+    background: rgba(100, 140, 255, 0.18);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: #7090dd;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(100, 140, 255, 0.4);
+  }
 </style>
 </head>
 <body>
 
 <h1>单摆简谐振动仿真</h1>
 <canvas id="canvas"></canvas>
+<div class="sliders">
+  <label>摆长 <span class="val" id="lenVal">200 px</span>
+    <input type="range" id="sliderLen" min="100" max="350" value="200" step="1">
+  </label>
+  <label>重力 <span class="val" id="gravVal">9.8</span>
+    <input type="range" id="sliderGrav" min="1" max="25" value="9.8" step="0.1">
+  </label>
+  <label>阻尼 <span class="val" id="dampVal">0.001</span>
+    <input type="range" id="sliderDamp" min="0" max="0.010" value="0.001" step="0.001">
+  </label>
+</div>
 <div class="panel">
   <div>摆角: <span id="angleDisplay">45.0°</span></div>
   <div>角速度: <span id="velocityDisplay">0.00 rad/s</span></div>
@@ -77,13 +118,13 @@ const W = 700, H = 520;
 canvas.width = W;
 canvas.height = H;
 
-const L = 200;
-const g = 9.8;
+let L = 200;
+let g = 9.8;
 const scale = 1;
 const pivotX = W / 2;
 const pivotY = 100;
 const bobRadius = 18;
-const damping = 0.999;
+let damping = 0.999;
 
 const DEG = Math.PI / 180;
 let theta = 45 * DEG;
@@ -211,12 +252,33 @@ document.getElementById('btnReset').addEventListener('click', () => {
   prevTheta = theta;
   lastTimestamp = null;
   paused = false;
+  L = 200; g = 9.8; damping = 0.999;
+  document.getElementById('sliderLen').value = 200;
+  document.getElementById('sliderGrav').value = 9.8;
+  document.getElementById('sliderDamp').value = 0.001;
+  document.getElementById('lenVal').textContent = '200 px';
+  document.getElementById('gravVal').textContent = '9.8';
+  document.getElementById('dampVal').textContent = '0.001';
   document.getElementById('btnPause').textContent = '暂停';
 });
 
 document.getElementById('btnPause').addEventListener('click', () => {
   paused = !paused;
   document.getElementById('btnPause').textContent = paused ? '继续' : '暂停';
+});
+
+document.getElementById('sliderLen').addEventListener('input', e => {
+  L = +e.target.value;
+  document.getElementById('lenVal').textContent = L + ' px';
+});
+document.getElementById('sliderGrav').addEventListener('input', e => {
+  g = +e.target.value;
+  document.getElementById('gravVal').textContent = g.toFixed(1);
+});
+document.getElementById('sliderDamp').addEventListener('input', e => {
+  const v = +e.target.value;
+  damping = 1 - v;
+  document.getElementById('dampVal').textContent = v.toFixed(3);
 });
 
 requestAnimationFrame(loop);
