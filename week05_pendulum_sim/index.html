@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单摆仿真实验 — 李雨婷 7905126041</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a24;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    color: #c8c8d4;
+    overflow: hidden;
+  }
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 400;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    color: #e0e0f0;
+  }
+  canvas {
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(100, 140, 255, 0.08);
+  }
+  .panel {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: #8888a0;
+  }
+  .panel span { color: #a0a0ff; font-weight: 600; }
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  button {
+    background: rgba(100, 140, 255, 0.12);
+    border: 1px solid rgba(100, 140, 255, 0.25);
+    color: #c0c0e0;
+    padding: 6px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+  }
+  button:hover { background: rgba(100, 140, 255, 0.25); }
+</style>
+</head>
+<body>
+
+<h1>单摆简谐振动仿真</h1>
+<canvas id="canvas"></canvas>
+<div class="panel">
+  <div>摆角: <span id="angleDisplay">45.0°</span></div>
+  <div>角速度: <span id="velocityDisplay">0.00 rad/s</span></div>
+  <div>周期: <span id="periodDisplay">—</span></div>
+  <div>时间: <span id="timeDisplay">0.00 s</span></div>
+</div>
+<div class="controls">
+  <button id="btnReset">重置</button>
+  <button id="btnPause">暂停</button>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const W = 700, H = 520;
+canvas.width = W;
+canvas.height = H;
+
+const L = 200;
+const g = 9.8;
+const scale = 1;
+const pivotX = W / 2;
+const pivotY = 100;
+const bobRadius = 18;
+const damping = 0.999;
+
+const DEG = Math.PI / 180;
+let theta = 45 * DEG;
+let omega = 0;
+let time = 0;
+let paused = false;
+let trail = [];
+const maxTrail = 80;
+
+let lastTimestamp = null;
+let periodStart = null;
+let periodValue = null;
+let prevTheta = theta;
+
+function physics(dt) {
+  const alpha = -(g / (L * scale * 0.5)) * Math.sin(theta);
+  omega += alpha * dt;
+  omega *= damping;
+  theta += omega * dt;
+  time += dt;
+
+  if (prevTheta > 0 && theta <= 0) {
+    if (periodStart !== null) {
+      periodValue = 2 * (time - periodStart);
+    }
+    periodStart = time;
+  }
+  prevTheta = theta;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  const bobX = pivotX + L * Math.sin(theta);
+  const bobY = pivotY + L * Math.cos(theta);
+
+  trail.push({ x: bobX, y: bobY });
+  if (trail.length > maxTrail) trail.shift();
+
+  for (let i = 0; i < trail.length; i++) {
+    const t = trail[i];
+    const alpha = (i / trail.length) * 0.35;
+    const r = 3 + (i / trail.length) * 4;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(120, 160, 255, ${alpha})`;
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(bobX, bobY);
+  ctx.strokeStyle = 'rgba(180, 190, 220, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#8888aa';
+  ctx.fill();
+
+  const glowGrad = ctx.createRadialGradient(bobX, bobY, bobRadius * 0.3, bobX, bobY, bobRadius * 3);
+  glowGrad.addColorStop(0, 'rgba(100, 160, 255, 0.5)');
+  glowGrad.addColorStop(0.4, 'rgba(80, 130, 255, 0.15)');
+  glowGrad.addColorStop(1, 'rgba(60, 100, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(bobX, bobY, bobRadius * 3, 0, Math.PI * 2);
+  ctx.fillStyle = glowGrad;
+  ctx.fill();
+
+  const bobGrad = ctx.createRadialGradient(bobX - 4, bobY - 4, 2, bobX, bobY, bobRadius);
+  bobGrad.addColorStop(0, '#e8eeff');
+  bobGrad.addColorStop(0.5, '#7090dd');
+  bobGrad.addColorStop(1, '#3a5090');
+  ctx.beginPath();
+  ctx.arc(bobX, bobY, bobRadius, 0, Math.PI * 2);
+  ctx.fillStyle = bobGrad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY + L + 30, 1, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(100, 140, 255, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(pivotX, pivotY + L + 40);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const arcR = 50;
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, arcR, Math.PI / 2 - Math.abs(theta), Math.PI / 2 + Math.abs(theta));
+  ctx.strokeStyle = 'rgba(160, 180, 255, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  document.getElementById('angleDisplay').textContent = (theta / DEG).toFixed(1) + '°';
+  document.getElementById('velocityDisplay').textContent = omega.toFixed(2) + ' rad/s';
+  document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+  document.getElementById('periodDisplay').textContent = periodValue !== null ? periodValue.toFixed(2) + ' s' : '计算中…';
+}
+
+function loop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+  lastTimestamp = timestamp;
+
+  if (!paused) {
+    const steps = 4;
+    const subDt = dt / steps;
+    for (let i = 0; i < steps; i++) physics(subDt);
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  theta = 45 * DEG;
+  omega = 0;
+  time = 0;
+  trail = [];
+  periodStart = null;
+  periodValue = null;
+  prevTheta = theta;
+  lastTimestamp = null;
+  paused = false;
+  document.getElementById('btnPause').textContent = '暂停';
+});
+
+document.getElementById('btnPause').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('btnPause').textContent = paused ? '继续' : '暂停';
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
