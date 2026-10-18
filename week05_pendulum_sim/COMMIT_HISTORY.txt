@@ -1,0 +1,9 @@
+bca2019 - 李雨婷, 26 seconds ago : docs(week05): add three reflections and video recorder tool
+ad055ba - 李雨婷, 33 seconds ago : fix(week05): correct double pendulum equations of motion - fix energy drift from 15.3% to 0.000000%
+15bf941 - 李雨婷, 21 minutes ago : fix(week05): rewrite physics engine with state object to fix RK4 energy drift
+6ce5a18 - 李雨婷, 25 minutes ago : fix(week05): reduce RK4 timestep to fix energy drift in double pendulum
+203dcdf - 李雨婷, 29 minutes ago : feat(week05): upgrade to double pendulum with RK4, rainbow trail, mouse drag
+a996a28 - 李雨婷, 39 minutes ago : feat(week05): add interactive parameter sliders (length, gravity, damping)
+c62a6e8 - 李雨婷, 43 minutes ago : feat(week05): add pendulum simulator with Canvas animation
+fb2eb2b - 李雨婷, 2 hours ago : feat(week05): init pendulum experiment workspace
+1927b7e - 李雨婷, 2 hours ago : Initial commit: 南昌大学课程作品集 - 李雨婷 7905126041 食品营养与健康
